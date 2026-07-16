@@ -121,6 +121,13 @@ satisfy CC-BY attribution.
 - **"Your Freesound login expired"** — click **Log in with Freesound**
   again; refresh tokens can be revoked from your
   [Freesound account settings](https://freesound.org/home/app_permissions/).
+- **Browser redirect doesn't come back / login seems to hang** — in the
+  login window that opens, paste the authorization code (or the whole
+  address-bar URL after you approve) into the **"Paste authorization
+  code…"** field and click **Submit code**. This bypasses the local
+  redirect entirely, which is useful if a firewall or unusual browser
+  setup blocks `127.0.0.1:8918`. Unexpected login errors are also logged
+  to `~/.freesoundconnect/error.log`.
 - **No sound on preview (Linux)** — Qt Multimedia needs GStreamer plugins:
   `sudo apt install gstreamer1.0-plugins-good gstreamer1.0-plugins-bad libmpg123-0`.
 - **"SSL certificates missing"** — Your Python can't verify HTTPS
