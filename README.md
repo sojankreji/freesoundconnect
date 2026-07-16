@@ -28,14 +28,14 @@ same way Finder/Explorer does.
 ## Download
 
 Grab the latest build for your OS from the
-[**Releases page**](https://github.com/YOUR_USERNAME/freesound-connect/releases)
+[**Releases page**](https://github.com/sojankreji/freesoundconnect/releases)
 — no Python required:
 
 | OS | File | Notes |
 |----|------|-------|
 | macOS | `FreesoundConnect-macOS.zip` | Unzip, move to Applications. First launch: **right-click ▸ Open** (the app is unsigned), or run `xattr -dr com.apple.quarantine "/Applications/Freesound Connect.app"` |
 | Windows | `FreesoundConnect-Windows.zip` | Unzip and run `FreesoundConnect.exe`. SmartScreen may warn about an unsigned app — choose *More info ▸ Run anyway* |
-| Linux | `FreesoundConnect-Linux.zip` | Unzip, `chmod +x freesound-connect`, run it |
+| Linux | `FreesoundConnect-Linux.zip` | Unzip, `chmod +x freesoundconnect`, run it |
 
 All you need besides the app is a free Freesound API key (setup below —
 takes ~2 minutes).
@@ -45,8 +45,8 @@ takes ~2 minutes).
 Requires Python 3.9+:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/freesound-connect
-cd freesound-connect
+git clone https://github.com/sojankreji/freesoundconnect
+cd freesoundconnect
 pip3 install -r requirements.txt
 python3 freesound_connect.py
 ```
@@ -55,7 +55,7 @@ Or install it as a command with [pipx](https://pipx.pypa.io):
 
 ```bash
 pipx install .
-freesound-connect
+freesoundconnect
 ```
 
 ## Getting a Freesound API key
@@ -66,7 +66,7 @@ freesound-connect
    leave the OAuth2 fields empty — this app only needs the simple
    **token** key.
 3. The first time you launch the app it will ask for the key. Paste it and
-   hit **Save**. It's stored locally in `~/.freesound-connect/config.json`
+   hit **Save**. It's stored locally in `~/.freesoundconnect/config.json`
    and never sent anywhere except to freesound.org.
 
 You can change the key any time with the **API Key…** button.

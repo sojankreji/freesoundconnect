@@ -15,9 +15,9 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "Zip for distribution:  ditto -c -k --keepParent 'dist/Freesound Connect.app' dist/FreesoundConnect-macOS.zip"
 else
   pyinstaller --noconfirm --clean --onefile --windowed \
-    --name freesound-connect \
+    --name freesoundconnect \
     --add-data "assets/icon.png:assets" \
     freesound_connect.py
   echo
-  echo "Built: dist/freesound-connect"
+  echo "Built: dist/freesoundconnect"
 fi

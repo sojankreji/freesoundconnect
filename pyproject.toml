@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "freesound-connect"
+name = "freesoundconnect"
 version = "1.0.0"
 description = "Search freesound.org, preview sounds, and drag them onto your DaVinci Resolve timeline."
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = ["PySide6>=6.5"]
 keywords = ["davinci-resolve", "freesound", "sfx", "audio", "video-editing"]
 
 [project.scripts]
-freesound-connect = "freesound_connect:main"
+freesoundconnect = "freesound_connect:main"
 
 [tool.setuptools]
 py-modules = ["freesound_connect"]

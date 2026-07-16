@@ -10,7 +10,7 @@ instead of Resolve's Studio-only scripting/UI APIs.
 
 Run:  python3 freesound_connect.py   (requires PySide6, see README.md)
 
-License: MIT — https://github.com/YOUR_USERNAME/freesound-connect
+License: MIT — https://github.com/sojankreji/freesoundconnect
 Freesound API docs: https://freesound.org/docs/api/
 """
 
@@ -54,7 +54,7 @@ APPLY_URL = "https://freesound.org/apiv2/apply/"
 PAGE_SIZE = 30
 SEARCH_FIELDS = "id,name,previews,duration,username,license,url"
 
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".freesound-connect")
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".freesoundconnect")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 DEFAULT_DOWNLOAD_DIR = os.path.join(
     os.path.expanduser("~"), "Documents", "FreesoundConnect"

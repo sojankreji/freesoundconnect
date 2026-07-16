@@ -51,7 +51,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           ./scripts/build.sh
-          cd dist && zip ${{ matrix.artifact }}.zip freesound-connect
+          cd dist && zip ${{ matrix.artifact }}.zip freesoundconnect
 
       - uses: actions/upload-artifact@v4
         with:
