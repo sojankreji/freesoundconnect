@@ -1,0 +1,2 @@
+[console_scripts]
+freesound-connect = freesound_connect:main
