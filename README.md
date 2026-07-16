@@ -1,4 +1,8 @@
-# Freesound Connect for DaVinci Resolve
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="Freesound Connect logo">
+</p>
+
+<h1 align="center">Freesound Connect for DaVinci Resolve</h1>
 
 A standalone companion app: search [freesound.org](https://freesound.org),
 preview sounds, and **drag them straight onto your DaVinci Resolve
@@ -21,13 +25,24 @@ drag-and-drop, however, works in every version of Resolve — so Freesound
 Connect runs as its own window next to Resolve and hands files over the
 same way Finder/Explorer does.
 
-## Requirements
+## Download
 
-- Python 3.9+
-- [PySide6](https://pypi.org/project/PySide6/) (installed below)
-- A free Freesound account and API key (setup below — takes ~2 minutes)
+Grab the latest build for your OS from the
+[**Releases page**](https://github.com/YOUR_USERNAME/freesound-connect/releases)
+— no Python required:
 
-## Installation
+| OS | File | Notes |
+|----|------|-------|
+| macOS | `FreesoundConnect-macOS.zip` | Unzip, move to Applications. First launch: **right-click ▸ Open** (the app is unsigned), or run `xattr -dr com.apple.quarantine "/Applications/Freesound Connect.app"` |
+| Windows | `FreesoundConnect-Windows.zip` | Unzip and run `FreesoundConnect.exe`. SmartScreen may warn about an unsigned app — choose *More info ▸ Run anyway* |
+| Linux | `FreesoundConnect-Linux.zip` | Unzip, `chmod +x freesound-connect`, run it |
+
+All you need besides the app is a free Freesound API key (setup below —
+takes ~2 minutes).
+
+## Running from source
+
+Requires Python 3.9+:
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/freesound-connect
@@ -98,9 +113,26 @@ satisfy CC-BY attribution.
   `pip3 install certifi`, or run *Install Certificates.command* found in
   your `/Applications/Python 3.x/` folder.
 
+## Building executables
+
+Releases are built automatically by
+[GitHub Actions](.github/workflows/build.yml): pushing a tag like `v1.0.0`
+builds macOS, Windows, and Linux executables with PyInstaller and attaches
+them to a GitHub Release. To build locally:
+
+```bash
+pip3 install -r requirements.txt pyinstaller
+./scripts/build.sh        # macOS / Linux  →  dist/
+.\scripts\build.ps1       # Windows        →  dist\FreesoundConnect.exe
+```
+
+The logo lives in [assets/icon.svg](assets/icon.svg); regenerate the
+`.png` / `.icns` / `.ico` derivatives with
+`python3 scripts/render_icons.py` (needs PySide6 + Pillow).
+
 ## Roadmap
 
-- Packaged binaries (PyInstaller) so no Python install is needed
+- Code-signed / notarized builds
 - OAuth2 support for original-quality downloads
 - Waveform display and scrub preview
 - Duration / sample-rate filters, tag browsing

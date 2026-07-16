@@ -25,7 +25,7 @@ import urllib.request
 
 try:
     from PySide6.QtCore import Qt, QThread, QUrl, Signal, QMimeData
-    from PySide6.QtGui import QDrag, QDesktopServices
+    from PySide6.QtGui import QDrag, QDesktopServices, QIcon
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
     from PySide6.QtWidgets import (
         QAbstractItemView, QApplication, QComboBox, QDialog, QHBoxLayout,
@@ -40,7 +40,14 @@ except ImportError:
     )
 
 APP_NAME = "Freesound Connect"
-VERSION = "0.2.0"
+VERSION = "1.0.0"
+
+
+def resource_path(*parts):
+    """Resolve bundled files both from source and from a PyInstaller build."""
+    base = getattr(sys, "_MEIPASS",
+                   os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
 
 API_BASE = "https://freesound.org/apiv2"
 APPLY_URL = "https://freesound.org/apiv2/apply/"
@@ -621,6 +628,9 @@ class MainWindow(QWidget):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    icon_path = resource_path("assets", "icon.png")
+    if os.path.isfile(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     win = MainWindow()
     win.show()
     if not win.config.get("api_key"):
