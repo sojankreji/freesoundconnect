@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .claude/
+oauth_credentials.py
 .DS_Store
 build/
 dist/

@@ -28,6 +28,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Write OAuth credentials
+        shell: bash
+        run: |
+          cat > oauth_credentials.py <<EOF
+          CLIENT_ID = "${{ secrets.FREESOUND_CLIENT_ID }}"
+          CLIENT_SECRET = "${{ secrets.FREESOUND_CLIENT_SECRET }}"
+          EOF
+
       - name: Install Qt runtime libraries (Linux)
         if: runner.os == 'Linux'
         run: |

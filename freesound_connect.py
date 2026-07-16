@@ -8,6 +8,9 @@ DaVinci Resolve timeline (or Media Pool). Works with BOTH the free
 version of Resolve and Studio, because it uses plain OS drag-and-drop
 instead of Resolve's Studio-only scripting/UI APIs.
 
+Sign-in uses Freesound's OAuth2 ("Log in with Freesound"), which unlocks
+original-quality downloads instead of compressed previews.
+
 Run:  python3 freesound_connect.py   (requires PySide6, see README.md)
 
 License: MIT — https://github.com/sojankreji/freesoundconnect
@@ -19,18 +22,24 @@ import os
 import re
 import ssl
 import sys
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
     from PySide6.QtCore import Qt, QThread, QUrl, Signal, QMimeData
-    from PySide6.QtGui import QDrag, QDesktopServices, QIcon
+    from PySide6.QtGui import (
+        QDrag, QDesktopServices, QIcon, QPainter, QPainterPath, QPixmap,
+    )
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
     from PySide6.QtWidgets import (
-        QAbstractItemView, QApplication, QComboBox, QDialog, QHBoxLayout,
-        QHeaderView, QLabel, QLineEdit, QPushButton, QTreeWidget,
-        QTreeWidgetItem, QVBoxLayout, QWidget,
+        QAbstractItemView, QApplication, QComboBox, QHBoxLayout,
+        QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton,
+        QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
     )
 except ImportError:
     sys.exit(
@@ -40,7 +49,7 @@ except ImportError:
     )
 
 APP_NAME = "Freesound Connect"
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
 
 def resource_path(*parts):
@@ -49,10 +58,21 @@ def resource_path(*parts):
                    os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, *parts)
 
+
+try:
+    # Real OAuth app credentials, gitignored — see oauth_credentials.example.py
+    from oauth_credentials import CLIENT_ID, CLIENT_SECRET
+except ImportError:
+    CLIENT_ID = os.environ.get("FREESOUND_CLIENT_ID", "")
+    CLIENT_SECRET = os.environ.get("FREESOUND_CLIENT_SECRET", "")
+
 API_BASE = "https://freesound.org/apiv2"
-APPLY_URL = "https://freesound.org/apiv2/apply/"
+AUTHORIZE_URL = "https://freesound.org/apiv2/oauth2/authorize/"
+TOKEN_URL = "https://freesound.org/apiv2/oauth2/access_token/"
+REDIRECT_PORT = 8918
+REDIRECT_URI = "http://127.0.0.1:%d/callback" % REDIRECT_PORT
 PAGE_SIZE = 30
-SEARCH_FIELDS = "id,name,previews,duration,username,license,url"
+SEARCH_FIELDS = "id,name,previews,duration,username,license,url,type"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".freesoundconnect")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
@@ -93,6 +113,10 @@ def save_config(cfg):
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2)
+    try:
+        os.chmod(CONFIG_PATH, 0o600)
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -116,16 +140,17 @@ def _ssl_context():
     return ctx
 
 
-def _http_get(url, token=None):
+def _http_get(url, access_token=None):
     headers = {"User-Agent": "%s/%s" % (APP_NAME.replace(" ", ""), VERSION)}
-    if token:
-        headers["Authorization"] = "Token %s" % token
+    if access_token:
+        headers["Authorization"] = "Bearer %s" % access_token
     req = urllib.request.Request(url, headers=headers)
     try:
         return urllib.request.urlopen(req, timeout=30, context=_ssl_context())
     except urllib.error.HTTPError as err:
         if err.code == 401:
-            raise FreesoundError("Invalid API key (401). Check Settings.")
+            raise FreesoundError("Your Freesound login expired. Please log "
+                                 "in again.")
         raise FreesoundError("Freesound returned HTTP %d." % err.code)
     except urllib.error.URLError as err:
         if isinstance(err.reason, ssl.SSLCertVerificationError):
@@ -137,7 +162,28 @@ def _http_get(url, token=None):
         raise FreesoundError("Network error: %s" % err.reason)
 
 
-def search_sounds(token, query, page=1, sort="score", license_filter=None):
+def _http_post_form(url, data):
+    body = urllib.parse.urlencode(data).encode("utf-8")
+    headers = {
+        "User-Agent": "%s/%s" % (APP_NAME.replace(" ", ""), VERSION),
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    req = urllib.request.Request(url, data=body, headers=headers,
+                                  method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30,
+                                    context=_ssl_context()) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        detail = err.read().decode("utf-8", "ignore")[:200]
+        raise FreesoundError("Freesound login error (HTTP %d): %s"
+                             % (err.code, detail))
+    except urllib.error.URLError as err:
+        raise FreesoundError("Network error: %s" % err.reason)
+
+
+def search_sounds(access_token, query, page=1, sort="score",
+                   license_filter=None):
     params = {
         "query": query,
         "page": page,
@@ -148,13 +194,13 @@ def search_sounds(token, query, page=1, sort="score", license_filter=None):
     if license_filter:
         params["filter"] = "license:%s" % license_filter
     url = "%s/search/text/?%s" % (API_BASE, urllib.parse.urlencode(params))
-    with _http_get(url, token) as resp:
+    with _http_get(url, access_token) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def download_file(url, dest, token=None):
+def download_file(url, dest, access_token=None):
     tmp = dest + ".part"
-    with _http_get(url, token) as resp, open(tmp, "wb") as out:
+    with _http_get(url, access_token) as resp, open(tmp, "wb") as out:
         while True:
             chunk = resp.read(64 * 1024)
             if not chunk:
@@ -172,14 +218,19 @@ def preview_url(sound):
     return url
 
 
+def original_download_url(sound):
+    return "%s/sounds/%s/download/" % (API_BASE, sound["id"])
+
+
 def sanitize_filename(name):
     name = re.sub(r"[^\w\s.-]", "", name).strip()
     name = re.sub(r"[\s]+", "_", name)
     return name[:80] or "sound"
 
 
-def sound_filename(sound):
-    return "%s__%s.mp3" % (sound["id"], sanitize_filename(sound["name"]))
+def original_filename(sound):
+    ext = sound.get("type") or "wav"
+    return "%s__%s.%s" % (sound["id"], sanitize_filename(sound["name"]), ext)
 
 
 def format_duration(seconds):
@@ -197,40 +248,221 @@ def short_license(url):
 
 
 # ---------------------------------------------------------------------------
+# OAuth2 ("Log in with Freesound")
+# ---------------------------------------------------------------------------
+
+def build_authorize_url():
+    params = {"client_id": CLIENT_ID, "response_type": "code"}
+    return "%s?%s" % (AUTHORIZE_URL, urllib.parse.urlencode(params))
+
+
+def exchange_code_for_tokens(code):
+    return _http_post_form(TOKEN_URL, {
+        "grant_type": "authorization_code",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+    })
+
+
+def refresh_access_token(refresh_token_value):
+    return _http_post_form(TOKEN_URL, {
+        "grant_type": "refresh_token",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "refresh_token": refresh_token_value,
+    })
+
+
+def fetch_profile(access_token):
+    with _http_get("%s/me/" % API_BASE, access_token) as resp:
+        me = json.loads(resp.read().decode("utf-8"))
+    username = me.get("username")
+    avatar_url = None
+    if username:
+        try:
+            user_url = "%s/users/%s/" % (API_BASE, urllib.parse.quote(username))
+            with _http_get(user_url) as resp:
+                user = json.loads(resp.read().decode("utf-8"))
+            avatar = user.get("avatar") or {}
+            avatar_url = avatar.get("medium") or avatar.get("small") \
+                or avatar.get("large")
+        except FreesoundError:
+            pass
+    return {"username": username, "avatar_url": avatar_url}
+
+
+class _CallbackHandler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802 (BaseHTTPRequestHandler API)
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        self.server.auth_code = params.get("code", [None])[0]
+        self.server.auth_error = params.get("error", [None])[0]
+        ok = bool(self.server.auth_code)
+        message = ("You're logged in to Freesound Connect. You can close "
+                  "this tab.") if ok else \
+            "Login failed or was cancelled. You can close this tab."
+        body = ("<html><body style='font-family:sans-serif;text-align:"
+               "center;padding:60px'><h2>%s</h2></body></html>" % message)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def log_message(self, fmt, *args):
+        pass  # silence default request logging
+
+
+def wait_for_oauth_code(timeout=300):
+    try:
+        server = HTTPServer(("127.0.0.1", REDIRECT_PORT), _CallbackHandler)
+    except OSError as err:
+        raise FreesoundError(
+            "Could not start local login listener on port %d: %s"
+            % (REDIRECT_PORT, err))
+    server.timeout = timeout
+    server.auth_code = None
+    server.auth_error = None
+    try:
+        server.handle_request()
+    finally:
+        server.server_close()
+    if server.auth_code:
+        return server.auth_code
+    if server.auth_error:
+        raise FreesoundError("Freesound login failed: %s" % server.auth_error)
+    raise FreesoundError("Login timed out waiting for the browser. Please "
+                         "try again.")
+
+
+class AuthManager:
+    """Holds OAuth2 tokens, persists them, and refreshes on demand.
+
+    ensure_valid_token() does blocking network I/O — only call it from a
+    background thread, never from the Qt main/UI thread.
+    """
+
+    def __init__(self, config):
+        self.config = config
+        data = config.get("oauth") or {}
+        self.access_token = data.get("access_token")
+        self.refresh_token_value = data.get("refresh_token")
+        self.expires_at = data.get("expires_at", 0)
+        self.username = data.get("username")
+        self.avatar_url = data.get("avatar_url")
+        self._lock = threading.Lock()
+
+    def is_logged_in(self):
+        return bool(self.refresh_token_value)
+
+    def _persist(self):
+        self.config["oauth"] = {
+            "access_token": self.access_token,
+            "refresh_token": self.refresh_token_value,
+            "expires_at": self.expires_at,
+            "username": self.username,
+            "avatar_url": self.avatar_url,
+        }
+        save_config(self.config)
+
+    def apply_tokens(self, token_data):
+        self.access_token = token_data["access_token"]
+        self.refresh_token_value = token_data.get(
+            "refresh_token", self.refresh_token_value)
+        self.expires_at = time.time() + float(
+            token_data.get("expires_in", 3600)) - 60
+        self._persist()
+
+    def apply_profile(self, profile):
+        self.username = profile.get("username")
+        self.avatar_url = profile.get("avatar_url")
+        self._persist()
+
+    def ensure_valid_token(self):
+        with self._lock:
+            if not self.refresh_token_value:
+                raise FreesoundError("Not logged in.")
+            if self.access_token and time.time() < self.expires_at:
+                return self.access_token
+            self.apply_tokens(refresh_access_token(self.refresh_token_value))
+            return self.access_token
+
+    def logout(self):
+        self.access_token = None
+        self.refresh_token_value = None
+        self.expires_at = 0
+        self.username = None
+        self.avatar_url = None
+        self.config.pop("oauth", None)
+        save_config(self.config)
+
+
+# ---------------------------------------------------------------------------
 # Background workers
 # ---------------------------------------------------------------------------
+
+class LoginWorker(QThread):
+    succeeded = Signal(dict, dict)  # token_data, profile
+    failed = Signal(str)
+
+    def run(self):
+        try:
+            webbrowser.open(build_authorize_url())
+            code = wait_for_oauth_code()
+            token_data = exchange_code_for_tokens(code)
+            profile = fetch_profile(token_data["access_token"])
+            self.succeeded.emit(token_data, profile)
+        except FreesoundError as err:
+            self.failed.emit(str(err))
+
+
+class AvatarWorker(QThread):
+    succeeded = Signal(bytes)
+
+    def __init__(self, url, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self):
+        try:
+            with _http_get(self._url) as resp:
+                self.succeeded.emit(resp.read())
+        except FreesoundError:
+            pass
+
 
 class SearchWorker(QThread):
     succeeded = Signal(dict)
     failed = Signal(str)
 
-    def __init__(self, token, query, page, sort, license_filter, parent=None):
+    def __init__(self, auth, query, page, sort, license_filter, parent=None):
         super().__init__(parent)
-        self._args = (token, query, page, sort, license_filter)
+        self._auth = auth
+        self._args = (query, page, sort, license_filter)
 
     def run(self):
         try:
-            self.succeeded.emit(search_sounds(*self._args))
+            token = self._auth.ensure_valid_token()
+            self.succeeded.emit(search_sounds(token, *self._args))
         except FreesoundError as err:
             self.failed.emit(str(err))
 
 
-class DownloadWorker(QThread):
-    succeeded = Signal(int, str)  # sound id, local path
-    failed = Signal(int, str)
-
-    def __init__(self, sound, dest, token, parent=None):
-        super().__init__(parent)
-        self._sound = sound
-        self._dest = dest
-        self._token = token
-
-    def run(self):
-        try:
-            download_file(preview_url(self._sound), self._dest, self._token)
-            self.succeeded.emit(self._sound["id"], self._dest)
-        except (FreesoundError, OSError) as err:
-            self.failed.emit(self._sound["id"], str(err))
+def make_circular_pixmap(pixmap, size):
+    scaled = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                           Qt.TransformationMode.SmoothTransformation)
+    result = QPixmap(size, size)
+    result.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    path.addEllipse(0, 0, size, size)
+    painter.setClipPath(path)
+    x = (size - scaled.width()) // 2
+    y = (size - scaled.height()) // 2
+    painter.drawPixmap(x, y, scaled)
+    painter.end()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -273,48 +505,131 @@ class ResultsTree(QTreeWidget):
 
 
 # ---------------------------------------------------------------------------
-# Settings dialog
+# Modern theme
 # ---------------------------------------------------------------------------
 
-class ApiKeyDialog(QDialog):
-    def __init__(self, current_key, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("%s — API Key" % APP_NAME)
-        self.setMinimumWidth(520)
-
-        intro = QLabel(
-            "Freesound Connect needs a free Freesound API key.<br><br>"
-            "1. Create an account at "
-            "<a href='https://freesound.org'>freesound.org</a><br>"
-            "2. Request a key at <a href='%s'>%s</a><br>"
-            "&nbsp;&nbsp;&nbsp;(any name/description is fine, leave the "
-            "OAuth fields empty)<br>"
-            "3. Paste the key below." % (APPLY_URL, APPLY_URL)
-        )
-        intro.setOpenExternalLinks(True)
-        intro.setWordWrap(True)
-
-        self.key_edit = QLineEdit(current_key or "")
-        self.key_edit.setPlaceholderText("Paste your Freesound API key here")
-
-        save_btn = QPushButton("Save")
-        save_btn.setDefault(True)
-        save_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        buttons.addWidget(cancel_btn)
-        buttons.addWidget(save_btn)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(intro)
-        layout.addWidget(self.key_edit)
-        layout.addLayout(buttons)
-
-    def api_key(self):
-        return self.key_edit.text().strip()
+STYLESHEET = """
+QWidget {
+    background: #12152b;
+    color: #e7e9f5;
+    font-size: 13px;
+}
+QLabel#Hint {
+    color: #9aa0c3;
+    padding: 4px 2px;
+}
+QLabel#Status {
+    color: #9aa0c3;
+    padding-top: 4px;
+}
+QLabel#AppTitle {
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+}
+QLineEdit, QComboBox {
+    background: #1b2044;
+    border: 1px solid #2a3060;
+    border-radius: 8px;
+    padding: 7px 10px;
+    selection-background-color: #35e0c3;
+    selection-color: #0c0f1f;
+}
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #4f9dff;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 22px;
+}
+QComboBox QAbstractItemView {
+    background: #1b2044;
+    border: 1px solid #2a3060;
+    selection-background-color: #2a3161;
+    outline: none;
+}
+QPushButton {
+    background: #1e2450;
+    border: 1px solid #2a3060;
+    border-radius: 8px;
+    padding: 7px 14px;
+    color: #e7e9f5;
+}
+QPushButton:hover {
+    background: #262d5c;
+    border: 1px solid #3a4280;
+}
+QPushButton:pressed {
+    background: #171b3d;
+}
+QPushButton:disabled {
+    color: #5c6289;
+}
+QPushButton#PrimaryButton {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                 stop:0 #35e0c3, stop:1 #4f9dff);
+    color: #0c0f1f;
+    font-weight: 600;
+    border: none;
+}
+QPushButton#PrimaryButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                 stop:0 #4aeed3, stop:1 #66aeff);
+}
+QPushButton#PrimaryButton:disabled {
+    background: #2a3060;
+    color: #5c6289;
+}
+QPushButton#LogoutButton {
+    background: transparent;
+    border: none;
+    color: #9aa0c3;
+    padding: 4px 8px;
+}
+QPushButton#LogoutButton:hover {
+    color: #ff8fa3;
+}
+QLabel#Username {
+    color: #e7e9f5;
+    font-weight: 500;
+}
+QTreeWidget {
+    background: #171b3d;
+    alternate-background-color: #1a1f45;
+    border: 1px solid #262c56;
+    border-radius: 10px;
+    padding: 2px;
+}
+QTreeWidget::item {
+    padding: 6px 4px;
+    border: none;
+}
+QTreeWidget::item:selected {
+    background: #2a4a6b;
+    color: #ffffff;
+    border-radius: 4px;
+}
+QHeaderView::section {
+    background: #12152b;
+    color: #9aa0c3;
+    border: none;
+    border-bottom: 1px solid #262c56;
+    padding: 6px 4px;
+    font-weight: 600;
+}
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+}
+QScrollBar::handle:vertical {
+    background: #2a3060;
+    border-radius: 5px;
+    min-height: 24px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -325,13 +640,14 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.config = load_config()
+        self.auth = AuthManager(self.config)
         self.results = []
         self.page = 1
         self.total_pages = 1
         self.last_query = ""
-        self.local_files = {}      # sound id -> downloaded path
-        self.pending_downloads = set()
+        self.local_files = {}  # sound id -> downloaded original file path
         self.workers = []
+        self._pending_search = False
 
         self.audio_out = QAudioOutput()
         self.player = QMediaPlayer()
@@ -339,13 +655,56 @@ class MainWindow(QWidget):
         self.player.errorOccurred.connect(self._on_player_error)
 
         self._build_ui()
+        self._refresh_account_ui()
 
     # -- UI -----------------------------------------------------------------
 
     def _build_ui(self):
         self.setWindowTitle("%s %s" % (APP_NAME, VERSION))
-        self.resize(920, 600)
+        self.setStyleSheet(STYLESHEET)
+        self.resize(960, 620)
 
+        # Header: logo, title, account area (login button / avatar + name)
+        logo = QLabel()
+        icon_path = resource_path("assets", "icon.png")
+        if os.path.isfile(icon_path):
+            logo.setPixmap(QPixmap(icon_path).scaled(
+                32, 32, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation))
+        title = QLabel(APP_NAME)
+        title.setObjectName("AppTitle")
+
+        self.login_btn = QPushButton("Log in with Freesound")
+        self.login_btn.setObjectName("PrimaryButton")
+        self.login_btn.clicked.connect(self.on_login_clicked)
+
+        self.avatar_label = QLabel()
+        self.avatar_label.setFixedSize(28, 28)
+        self.username_label = QLabel()
+        self.username_label.setObjectName("Username")
+        self.logout_btn = QPushButton("Log out")
+        self.logout_btn.setObjectName("LogoutButton")
+        self.logout_btn.clicked.connect(self.on_logout_clicked)
+
+        account_row = QHBoxLayout()
+        account_row.setSpacing(8)
+        account_row.addWidget(self.avatar_label)
+        account_row.addWidget(self.username_label)
+        account_row.addWidget(self.logout_btn)
+        account_widget = QWidget()
+        account_widget.setLayout(account_row)
+
+        self.account_stack = QStackedWidget()
+        self.account_stack.addWidget(self.login_btn)   # index 0: logged out
+        self.account_stack.addWidget(account_widget)    # index 1: logged in
+
+        header = QHBoxLayout()
+        header.addWidget(logo)
+        header.addWidget(title)
+        header.addStretch(1)
+        header.addWidget(self.account_stack)
+
+        # Search row
         self.query_edit = QLineEdit()
         self.query_edit.setPlaceholderText(
             "Search freesound.org  (e.g. rain, whoosh, door slam)")
@@ -359,26 +718,28 @@ class MainWindow(QWidget):
             self.sort_combo.addItem(label)
 
         search_btn = QPushButton("Search")
+        search_btn.setObjectName("PrimaryButton")
         search_btn.clicked.connect(self.on_search)
 
         top = QHBoxLayout()
+        top.setSpacing(8)
         top.addWidget(self.query_edit, 1)
         top.addWidget(self.license_combo)
         top.addWidget(self.sort_combo)
         top.addWidget(search_btn)
 
         hint = QLabel(
-            "🎵  <b>Drag a sound from the list below onto your DaVinci "
-            "Resolve timeline</b> (or Media Pool). Double-click to preview.")
+            "🎵  Drag a sound from the list below onto your DaVinci Resolve "
+            "timeline (or Media Pool). Double-click to preview.")
+        hint.setObjectName("Hint")
         hint.setWordWrap(True)
 
         self.tree = ResultsTree(self.ensure_local_file)
         self.tree.itemDoubleClicked.connect(lambda *_: self.on_preview())
-        self.tree.currentItemChanged.connect(self._on_selection_changed)
 
-        self.prev_btn = QPushButton("< Prev")
+        self.prev_btn = QPushButton("‹ Prev")
         self.prev_btn.clicked.connect(lambda: self.change_page(-1))
-        self.next_btn = QPushButton("Next >")
+        self.next_btn = QPushButton("Next ›")
         self.next_btn.clicked.connect(lambda: self.change_page(+1))
         self.page_label = QLabel("")
 
@@ -390,10 +751,9 @@ class MainWindow(QWidget):
         open_btn.clicked.connect(self.on_open_in_browser)
         folder_btn = QPushButton("Downloads Folder")
         folder_btn.clicked.connect(self.on_open_downloads)
-        settings_btn = QPushButton("API Key…")
-        settings_btn.clicked.connect(self.show_settings)
 
         nav = QHBoxLayout()
+        nav.setSpacing(8)
         nav.addWidget(self.prev_btn)
         nav.addWidget(self.page_label)
         nav.addWidget(self.next_btn)
@@ -402,11 +762,14 @@ class MainWindow(QWidget):
         nav.addWidget(stop_btn)
         nav.addWidget(open_btn)
         nav.addWidget(folder_btn)
-        nav.addWidget(settings_btn)
 
         self.status = QLabel("Ready.")
+        self.status.setObjectName("Status")
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+        layout.addLayout(header)
         layout.addLayout(top)
         layout.addWidget(hint)
         layout.addWidget(self.tree, 1)
@@ -416,19 +779,62 @@ class MainWindow(QWidget):
     def set_status(self, text):
         self.status.setText(text)
 
-    # -- Settings -----------------------------------------------------------
+    # -- Account / login ------------------------------------------------------
 
-    def show_settings(self):
-        dlg = ApiKeyDialog(self.config.get("api_key", ""), self)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.api_key():
-            self.config["api_key"] = dlg.api_key()
-            save_config(self.config)
-            self.set_status("API key saved.")
+    def _refresh_account_ui(self):
+        if self.auth.is_logged_in():
+            self.username_label.setText(self.auth.username or "Logged in")
+            self.avatar_label.clear()
+            if self.auth.avatar_url:
+                worker = AvatarWorker(self.auth.avatar_url)
+                worker.succeeded.connect(self._on_avatar_loaded)
+                self._track_worker(worker)
+                worker.start()
+            self.account_stack.setCurrentIndex(1)
+        else:
+            self.account_stack.setCurrentIndex(0)
 
-    def require_api_key(self):
-        if not self.config.get("api_key"):
-            self.show_settings()
-        return self.config.get("api_key")
+    def _on_avatar_loaded(self, data):
+        pixmap = QPixmap()
+        if pixmap.loadFromData(data):
+            self.avatar_label.setPixmap(make_circular_pixmap(pixmap, 28))
+
+    def on_login_clicked(self):
+        if not CLIENT_ID or not CLIENT_SECRET:
+            QMessageBox.warning(
+                self, APP_NAME,
+                "This build is missing Freesound OAuth credentials.\n\n"
+                "See README.md ▸ 'Setting up OAuth credentials (for "
+                "maintainers)' for how to register a Freesound app and "
+                "supply oauth_credentials.py.")
+            return
+        self.login_btn.setEnabled(False)
+        self.set_status("Opening your browser to log in to Freesound…")
+        worker = LoginWorker()
+        worker.succeeded.connect(self._on_login_succeeded)
+        worker.failed.connect(self._on_login_failed)
+        self._track_worker(worker)
+        worker.start()
+
+    def _on_login_succeeded(self, token_data, profile):
+        self.auth.apply_tokens(token_data)
+        self.auth.apply_profile(profile)
+        self.login_btn.setEnabled(True)
+        self._refresh_account_ui()
+        self.set_status("Logged in as %s." % (self.auth.username or "you"))
+        if self._pending_search:
+            self._pending_search = False
+            self.on_search()
+
+    def _on_login_failed(self, message):
+        self.login_btn.setEnabled(True)
+        self._pending_search = False
+        self.set_status(message)
+
+    def on_logout_clicked(self):
+        self.auth.logout()
+        self._refresh_account_ui()
+        self.set_status("Logged out.")
 
     # -- Search -------------------------------------------------------------
 
@@ -444,9 +850,11 @@ class MainWindow(QWidget):
         self.run_search(query=self.last_query)
 
     def run_search(self, query=None):
-        token = self.require_api_key()
-        if not token:
+        if not self.auth.is_logged_in():
+            self._pending_search = True
+            self.on_login_clicked()
             return
+
         query = query if query is not None else self.query_edit.text().strip()
         if not query:
             self.set_status("Type something to search for.")
@@ -456,7 +864,7 @@ class MainWindow(QWidget):
         sort = SORT_CHOICES[self.sort_combo.currentIndex()][1]
 
         self.set_status("Searching for “%s”…" % query)
-        worker = SearchWorker(token, query, self.page, sort, license_filter)
+        worker = SearchWorker(self.auth, query, self.page, sort, license_filter)
         worker.succeeded.connect(
             lambda data, q=query: self._on_search_done(q, data))
         worker.failed.connect(self.set_status)
@@ -492,13 +900,6 @@ class MainWindow(QWidget):
             return None
         return item.data(0, Qt.ItemDataRole.UserRole)
 
-    def _on_selection_changed(self, current, _previous):
-        # Prefetch in the background so dragging is instant.
-        if current:
-            sound = current.data(0, Qt.ItemDataRole.UserRole)
-            if sound:
-                self.prefetch(sound)
-
     def on_preview(self):
         sound = self.selected_sound()
         if not sound:
@@ -533,46 +934,28 @@ class MainWindow(QWidget):
         return self.config.get("download_dir", DEFAULT_DOWNLOAD_DIR)
 
     def local_path_for(self, sound):
-        return os.path.join(self.download_dir(), sound_filename(sound))
-
-    def prefetch(self, sound):
-        sid = sound["id"]
-        if sid in self.local_files or sid in self.pending_downloads:
-            return
-        path = self.local_path_for(sound)
-        if os.path.isfile(path):
-            self.local_files[sid] = path
-            return
-        os.makedirs(self.download_dir(), exist_ok=True)
-        self.pending_downloads.add(sid)
-        worker = DownloadWorker(sound, path, self.config.get("api_key"))
-        worker.succeeded.connect(self._on_download_done)
-        worker.failed.connect(self._on_download_failed)
-        self._track_worker(worker)
-        worker.start()
-
-    def _on_download_done(self, sid, path):
-        self.pending_downloads.discard(sid)
-        self.local_files[sid] = path
-
-    def _on_download_failed(self, sid, message):
-        self.pending_downloads.discard(sid)
-        self.set_status(message)
+        return os.path.join(self.download_dir(), original_filename(sound))
 
     def ensure_local_file(self, sound):
-        """Called at drag start — must return a real file path. Blocks
-        briefly (with a wait cursor) if the prefetch hasn't finished."""
+        """Called at drag start — must return a real file path. Downloads
+        the original-quality file (needs a valid OAuth2 login) and blocks
+        briefly with a wait cursor if it isn't cached yet."""
+        if not self.auth.is_logged_in():
+            self.set_status("Log in with Freesound first.")
+            return None
+
         sid = sound["id"]
         path = self.local_files.get(sid)
         if not path:
             path = self.local_path_for(sound)
             if not os.path.isfile(path):
                 QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-                self.set_status("Downloading “%s”…" % sound["name"])
+                self.set_status(
+                    "Downloading original-quality “%s”…" % sound["name"])
                 try:
+                    token = self.auth.ensure_valid_token()
                     os.makedirs(self.download_dir(), exist_ok=True)
-                    download_file(preview_url(sound), path,
-                                  self.config.get("api_key"))
+                    download_file(original_download_url(sound), path, token)
                 except (FreesoundError, OSError) as err:
                     self.set_status(str(err))
                     return None
@@ -633,8 +1016,9 @@ def main():
         app.setWindowIcon(QIcon(icon_path))
     win = MainWindow()
     win.show()
-    if not win.config.get("api_key"):
-        win.show_settings()
+    if not win.auth.is_logged_in():
+        win.set_status(
+            "Click “Log in with Freesound” to search and add sounds.")
     sys.exit(app.exec())
 
 

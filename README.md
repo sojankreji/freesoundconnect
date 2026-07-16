@@ -11,7 +11,8 @@ timeline**.
 - 🔎 Full-text search with license and sort filters
 - ▶️ Instant in-app preview (double-click a result)
 - 🎬 Drag any result onto Resolve's timeline or Media Pool — it lands as a
-  real audio file
+  real, **original-quality** audio file
+- 🔐 One-click **"Log in with Freesound"** — no manual API keys to copy
 - 📝 Automatically maintains a `CREDITS.txt` attribution file for the
   Creative Commons sounds you use
 - 🆓 Works with **both the free version of DaVinci Resolve and Studio**
@@ -37,8 +38,8 @@ Grab the latest build for your OS from the
 | Windows | `FreesoundConnect-Windows.zip` | Unzip and run `FreesoundConnect.exe`. SmartScreen may warn about an unsigned app — choose *More info ▸ Run anyway* |
 | Linux | `FreesoundConnect-Linux.zip` | Unzip, `chmod +x freesoundconnect`, run it |
 
-All you need besides the app is a free Freesound API key (setup below —
-takes ~2 minutes).
+All you need besides the app is a free Freesound account — clicking
+**Log in with Freesound** in the app handles the rest.
 
 ## Running from source
 
@@ -58,18 +59,26 @@ pipx install .
 freesoundconnect
 ```
 
-## Getting a Freesound API key
+Running from source needs its own OAuth credentials — see
+[Setting up OAuth credentials](#setting-up-oauth-credentials-for-maintainers)
+below, or ask whoever maintains your fork for a dev
+`oauth_credentials.py`.
 
-1. Create a free account at [freesound.org](https://freesound.org).
-2. Go to <https://freesound.org/apiv2/apply/> and request an API key.
-   Any name and description will do (e.g. "Freesound Connect");
-   leave the OAuth2 fields empty — this app only needs the simple
-   **token** key.
-3. The first time you launch the app it will ask for the key. Paste it and
-   hit **Save**. It's stored locally in `~/.freesoundconnect/config.json`
-   and never sent anywhere except to freesound.org.
+## Logging in
 
-You can change the key any time with the **API Key…** button.
+Freesound Connect signs you in with your real Freesound account via OAuth2
+— there's no API key to find or paste.
+
+1. Launch the app and click **Log in with Freesound**.
+2. Your browser opens Freesound's login/authorize page. Approve access.
+3. The tab confirms you're logged in — switch back to Freesound Connect,
+   where your avatar and username now appear in the header.
+
+Tokens are stored locally in `~/.freesoundconnect/config.json`
+(file permissions restricted to your user) and refreshed automatically.
+Click **Log out** any time to revoke local access — this doesn't revoke
+the authorization on freesound.org itself, which you can do from your
+[Freesound account settings](https://freesound.org/home/app_permissions/).
 
 ## Usage
 
@@ -89,10 +98,10 @@ satisfy CC-BY attribution.
 
 ## Good to know
 
-- **Audio quality:** sounds are fetched as Freesound's high-quality MP3
-  previews (~128 kbps). Downloading the *original* uncompressed files
-  requires OAuth2 login, which is on the roadmap. For most SFX/ambience
-  use the HQ preview is indistinguishable in a mix.
+- **Audio quality:** in-app preview streams Freesound's compressed MP3
+  preview, but **dragging to the timeline downloads the original file**
+  exactly as its uploader submitted it (WAV/AIFF/FLAC/etc.) — this needs
+  the OAuth2 login above, which is why login is required before searching.
 - **Licenses:** filter by **CC0** if you want zero-attribution sounds for
   commercial work. CC-BY requires credit (the app writes it for you);
   CC-BY-NC is non-commercial only. You are responsible for complying with
@@ -103,9 +112,15 @@ satisfy CC-BY attribution.
 - **"Freesound Connect needs PySide6"** — run
   `pip3 install -r requirements.txt` with the same Python you use to start
   the app.
-- **"Invalid API key (401)"** — Re-copy the key from
-  <https://freesound.org/apiv2/apply/> (it's the *Client secret/API key*
-  value) and re-enter it via **API Key…**.
+- **"This build is missing Freesound OAuth credentials"** — you're running
+  from source without an `oauth_credentials.py`. See
+  [Setting up OAuth credentials](#setting-up-oauth-credentials-for-maintainers).
+- **Browser opens but the app never logs you in** — something else on
+  your machine is using port 8918. Quit it and click **Log in with
+  Freesound** again (the port is currently fixed; see Roadmap).
+- **"Your Freesound login expired"** — click **Log in with Freesound**
+  again; refresh tokens can be revoked from your
+  [Freesound account settings](https://freesound.org/home/app_permissions/).
 - **No sound on preview (Linux)** — Qt Multimedia needs GStreamer plugins:
   `sudo apt install gstreamer1.0-plugins-good gstreamer1.0-plugins-bad libmpg123-0`.
 - **"SSL certificates missing"** — Your Python can't verify HTTPS
@@ -130,10 +145,43 @@ The logo lives in [assets/icon.svg](assets/icon.svg); regenerate the
 `.png` / `.icns` / `.ico` derivatives with
 `python3 scripts/render_icons.py` (needs PySide6 + Pillow).
 
+## Setting up OAuth credentials (for maintainers)
+
+Freesound Connect uses a single, shared "Log in with Freesound" OAuth2
+app — end users never register anything themselves. If you're building
+the app yourself (from source or for a release), you need your own
+Freesound app credentials:
+
+1. Log in at [freesound.org](https://freesound.org) and go to
+   <https://freesound.org/apiv2/apps/> to create a new API credential.
+2. Set its **Redirect URI** to exactly `http://127.0.0.1:8918/callback`
+   — this must match `REDIRECT_URI` in `freesound_connect.py`.
+3. Copy `oauth_credentials.example.py` to `oauth_credentials.py` (already
+   gitignored) and fill in the `CLIENT_ID` / `CLIENT_SECRET` you were
+   given:
+   ```bash
+   cp oauth_credentials.example.py oauth_credentials.py
+   ```
+4. Run the app normally — it picks up `oauth_credentials.py`
+   automatically. (You can alternatively set the `FREESOUND_CLIENT_ID`
+   / `FREESOUND_CLIENT_SECRET` environment variables instead of the
+   file.)
+
+For CI-built releases, add `FREESOUND_CLIENT_ID` and
+`FREESOUND_CLIENT_SECRET` as **repository secrets** in GitHub (Settings
+▸ Secrets and variables ▸ Actions) — the
+[build workflow](.github/workflows/build.yml) writes them into
+`oauth_credentials.py` before each build so the secret itself never
+touches the git history.
+
+`CLIENT_SECRET` does end up embedded in the distributed executables —
+that's inherent to how desktop OAuth2 clients work and is what
+Freesound's own API expects for non-server apps.
+
 ## Roadmap
 
 - Code-signed / notarized builds
-- OAuth2 support for original-quality downloads
+- Configurable OAuth redirect port (currently fixed at 8918)
 - Waveform display and scrub preview
 - Duration / sample-rate filters, tag browsing
 - Optional direct insert-at-playhead for Resolve **Studio** (scripting API)
