@@ -7,12 +7,18 @@ files:
 directories:
   buildResources: build
   output: release
+# No paid Apple Developer ID: skip electron-builder's own signing and instead
+# apply a valid deep ad-hoc signature ourselves in the afterPack hook. See
+# build/afterPack.js for why. Also documented in README (right-click → Open).
+afterPack: build/afterPack.js
 mac:
   target:
     - dmg
     - zip
   icon: build/icon.icns
   category: public.app-category.video
+  identity: null
+  gatekeeperAssess: false
 win:
   target:
     - nsis

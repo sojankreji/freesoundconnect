@@ -62,6 +62,33 @@ Produces a dmg/zip (macOS), nsis installer (Windows), and AppImage (Linux). CI
 ([.github/workflows/electron-build.yml](.github/workflows/electron-build.yml))
 builds all three on a `v*` tag and attaches them to a GitHub Release.
 
+## Installing
+
+### macOS
+
+The app is **ad-hoc signed but not notarized** (notarization needs a paid Apple
+Developer account). So the first time you open it, macOS shows a Gatekeeper
+warning — this is expected, not a corrupt download. Open it one of these ways:
+
+1. Open the `.dmg` and drag **Freesound Connect** into **Applications**.
+2. In Applications, **right-click** the app → **Open**, then click **Open** in
+   the dialog. (Double-clicking won't offer the Open button — you must
+   right-click the first time.)
+3. On recent macOS you may instead need **System Settings › Privacy & Security**
+   → scroll down → **Open Anyway**.
+
+If macOS still refuses (e.g. *"damaged and can't be opened"*), clear the
+download quarantine flag from Terminal and open normally afterwards:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Freesound Connect.app"
+```
+
+### Windows
+
+The installer is unsigned, so SmartScreen shows *"Windows protected your PC"* —
+click **More info › Run anyway**.
+
 ## Usage
 
 1. Launch the app and keep it next to (or on top of) Resolve.
