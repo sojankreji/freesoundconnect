@@ -8,10 +8,19 @@ A standalone companion app: search [freesound.org](https://freesound.org),
 preview sounds, and **drag them straight onto your DaVinci Resolve
 timeline**.
 
-- 🔎 Full-text search with license and sort filters
-- ▶️ Instant in-app preview (double-click a result)
+- 🔎 Full-text search with license and sort filters, plus rich result
+  details (format, sample rate, rating, download count, tags)
+- ▶️ Instant in-app preview with **waveform display**, click-to-seek,
+  play/pause and volume controls
+- ✂️ **Drag-select a region of the waveform** to insert only that part of
+  the sound into your timeline
 - 🎬 Drag any result onto Resolve's timeline or Media Pool — it lands as a
   real, **original-quality** audio file
+- 📋 Collect sounds in a cart-style **shotlist** (🛒 button) and save them
+  as named **playlists**, managed on their own page via the sidebar
+  navigation
+- 🔥 **Trending sounds** on launch — the most-downloaded recent uploads,
+  before you even type a search
 - 🔐 One-click **"Log in with Freesound"** — no manual API keys to copy
 - 📝 Automatically maintains a `CREDITS.txt` attribution file for the
   Creative Commons sounds you use
@@ -85,10 +94,22 @@ the authorization on freesound.org itself, which you can do from your
 1. Launch the app and keep it next to (or on top of) Resolve.
 2. Type a search term ("rain", "whoosh", "door slam"…) and press Enter.
    Optionally filter by license (CC0 / CC-BY / CC-BY-NC) and sort order.
-3. Double-click a result (or hit **▶ Preview**) to listen.
+3. Click a result to load its **waveform** in the player bar; double-click
+   (or hit **▶**) to listen. Click the waveform to seek.
 4. **Drag the row onto your Resolve timeline** — drop it on an audio track
-   at the spot you want, or drop it in the Media Pool. Selecting a row
-   pre-downloads it in the background, so drags are instant.
+   at the spot you want, or drop it in the Media Pool.
+5. Want just a piece of a long sound? **Drag across the waveform** to
+   select a region — the selection plays back on its own, and dragging the
+   row to Resolve then inserts **only the selected part** (exported as a
+   WAV next to your downloads). Double-click the waveform to clear the
+   selection.
+6. Use **＋ Add to Shotlist** to collect candidate sounds while you browse,
+   then review them in the **🛒 Shotlist** popup (top right) — preview,
+   remove, drag to Resolve, or **Save as playlist…**. Open **🎼 Playlists**
+   in the left navigation to browse saved playlists: rename or delete
+   them, remove individual sounds, send sounds back to the shotlist, and
+   preview/drag them to Resolve like any search result. The shotlist
+   itself survives restarts.
 
 Sounds are saved to `~/Documents/FreesoundConnect/` — keep that folder
 around, since your Resolve project links to the files in it. Every sound
@@ -162,7 +183,7 @@ Freesound app credentials:
 1. Log in at [freesound.org](https://freesound.org) and go to
    <https://freesound.org/apiv2/apps/> to create a new API credential.
 2. Set its **Redirect URI** to exactly `http://127.0.0.1:8918/callback`
-   — this must match `REDIRECT_URI` in `freesound_connect.py`.
+   — this must match `REDIRECT_URI` in `freesoundconnect/config.py`.
 3. Copy `oauth_credentials.example.py` to `oauth_credentials.py` (already
    gitignored) and fill in the `CLIENT_ID` / `CLIENT_SECRET` you were
    given:
@@ -189,7 +210,6 @@ Freesound's own API expects for non-server apps.
 
 - Code-signed / notarized builds
 - Configurable OAuth redirect port (currently fixed at 8918)
-- Waveform display and scrub preview
 - Duration / sample-rate filters, tag browsing
 - Optional direct insert-at-playhead for Resolve **Studio** (scripting API)
 
