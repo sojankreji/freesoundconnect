@@ -1,0 +1,26 @@
+<div class="backdrop">
+  <div class="dialog card">
+    <h2>Log in with Freesound</h2>
+    <p class="hint">
+      A browser window opened for you to log in to Freesound. If it doesn't
+      redirect back automatically within a few seconds of approving, copy the
+      authorization code (or the whole address-bar URL) and paste it below.
+    </p>
+    <input
+      class="input"
+      [ngModel]="code()"
+      (ngModelChange)="code.set($event)"
+      (keyup.enter)="submit()"
+      placeholder="Paste authorization code or redirect URL here"
+      autofocus
+    />
+    <div class="actions">
+      <button class="btn btn-ghost" (click)="cancel()">Cancel</button>
+      <button class="btn btn-primary" (click)="submit()">Submit code</button>
+    </div>
+    <p class="waiting hint">
+      <lucide-icon name="loader" [size]="13" class="spin"></lucide-icon>
+      Waiting for the browser…
+    </p>
+  </div>
+</div>

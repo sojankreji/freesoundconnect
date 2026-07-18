@@ -1,0 +1,80 @@
+@if (sounds().length === 0) {
+  <div class="empty">
+    <lucide-icon name="music" [size]="34"></lucide-icon>
+    <p>{{ emptyText() }}</p>
+  </div>
+} @else {
+  <div class="list-head" [class.compact]="!full()">
+    <span class="col-play"></span>
+    <span class="col-name">Name</span>
+    <span class="col-dur">Duration</span>
+    @if (full()) {
+      <span class="col-type">Type</span>
+      <span class="col-specs">Specs</span>
+      <span class="col-rating">Rating</span>
+      <span class="col-dl">Downloads</span>
+    }
+    <span class="col-author">Author</span>
+    @if (full()) {
+      <span class="col-lic">License</span>
+    }
+    <span class="col-fav"></span>
+  </div>
+
+  <div class="list-body">
+    @for (sound of sounds(); track sound.id) {
+      <div
+        class="row"
+        [class.compact]="!full()"
+        [class.current]="isCurrent(sound)"
+        [title]="tooltip(sound)"
+        draggable="true"
+        (click)="onRowClick(sound)"
+        (dblclick)="onRowDouble(sound)"
+        (dragstart)="onDragStart($event, sound)"
+      >
+        <span class="col-play">
+          <button class="play-btn" (click)="onPlayClick($event, sound)">
+            <lucide-icon [name]="isPlaying(sound) ? 'pause' : 'play'" [size]="14"></lucide-icon>
+          </button>
+        </span>
+        <span class="col-name">
+          <span class="name-text">{{ sound.name }}</span>
+          <span class="ready ready-{{ readyState(sound) }}" [title]="
+            readyState(sound) === 'ready' ? 'Ready to drag to Resolve' :
+            readyState(sound) === 'downloading' ? 'Downloading original… ' + progressPct(sound) + '%' :
+            readyState(sound) === 'error' ? 'Download failed' : ''">
+            @if (readyState(sound) === 'ready') {
+              <lucide-icon name="check" [size]="12"></lucide-icon>
+            } @else if (readyState(sound) === 'downloading') {
+              <lucide-icon name="loader" [size]="12" class="spin"></lucide-icon>
+            } @else if (readyState(sound) === 'error') {
+              <lucide-icon name="triangle-alert" [size]="12"></lucide-icon>
+            }
+          </span>
+        </span>
+        <span class="col-dur mono">{{ fmtDuration(sound.duration) }}</span>
+        @if (full()) {
+          <span class="col-type">{{ (sound.type || '').toUpperCase() }}</span>
+          <span class="col-specs faint">{{ fmtSpecs(sound) }}</span>
+          <span class="col-rating">{{ fmtRating(sound) }}</span>
+          <span class="col-dl mono">{{ sound.num_downloads || '' }}</span>
+        }
+        <span class="col-author">{{ sound.username }}</span>
+        @if (full()) {
+          <span class="col-lic faint">{{ shortLicense(sound.license) }}</span>
+        }
+        <span class="col-fav">
+          <button
+            class="fav-btn"
+            [class.on]="isFavourite(sound)"
+            [title]="isFavourite(sound) ? 'Remove from shotlist' : 'Add to shotlist'"
+            (click)="toggleFavourite($event, sound)"
+          >
+            <lucide-icon name="heart" [size]="15"></lucide-icon>
+          </button>
+        </span>
+      </div>
+    }
+  </div>
+}

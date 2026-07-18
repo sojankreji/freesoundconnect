@@ -1,0 +1,83 @@
+<div class="search-page">
+  <div class="controls">
+    <div class="query">
+      <lucide-icon name="search" [size]="16" class="faint"></lucide-icon>
+      <input
+        class="input query-input"
+        [ngModel]="search.queryText()"
+        (ngModelChange)="search.queryText.set($event)"
+        (keyup.enter)="search.search()"
+        placeholder="Search freesound.org  (e.g. rain, whoosh, door slam)"
+      />
+    </div>
+    <select
+      class="select"
+      [ngModel]="search.licenseIndex()"
+      (ngModelChange)="search.licenseIndex.set(+$event)"
+    >
+      @for (label of licenses; track $index) {
+        <option [value]="$index">{{ label }}</option>
+      }
+    </select>
+    <select
+      class="select"
+      [ngModel]="search.sortIndex()"
+      (ngModelChange)="search.sortIndex.set(+$event)"
+    >
+      @for (label of sorts; track $index) {
+        <option [value]="$index">{{ label }}</option>
+      }
+    </select>
+    <button class="btn btn-primary" (click)="search.search()">Search</button>
+  </div>
+
+  @if (search.banner()) {
+    <div class="banner">{{ search.banner() }}</div>
+  } @else {
+    <div class="banner faint">
+      🎵 Drag a sound onto your DaVinci Resolve timeline. Select part of the
+      waveform below to insert only that region. Double-click a row to preview.
+    </div>
+  }
+
+  <div class="results card">
+    @if (search.loading()) {
+      <div class="skeletons">
+        @for (row of skeletonRows; track $index) {
+          <div class="skeleton skel-row"></div>
+        }
+      </div>
+    } @else {
+      <app-sound-list
+        [sounds]="search.results()"
+        variant="full"
+        emptyText="No results yet — search for a sound above."
+      ></app-sound-list>
+    }
+  </div>
+
+  <div class="footer">
+    <button class="btn btn-sm" (click)="search.changePage(-1)" [disabled]="search.page() <= 1">
+      <lucide-icon name="chevron-left" [size]="15"></lucide-icon> Prev
+    </button>
+    <span class="hint mono">Page {{ search.page() }} / {{ search.totalPages() }}</span>
+    <button
+      class="btn btn-sm"
+      (click)="search.changePage(1)"
+      [disabled]="search.page() >= search.totalPages()"
+    >
+      Next <lucide-icon name="chevron-right" [size]="15"></lucide-icon>
+    </button>
+    <span class="spacer"></span>
+    <span class="hint fav-tip">
+      <lucide-icon name="heart" [size]="13"></lucide-icon>
+      Tap the heart on a row to add it to your shotlist
+    </span>
+    <button class="btn btn-sm" (click)="openSelectedOnFreesound()">
+      <lucide-icon name="external-link" [size]="14"></lucide-icon> Open on Freesound
+    </button>
+    <button class="btn btn-sm" (click)="openDownloads()">
+      <lucide-icon name="folder" [size]="14"></lucide-icon> Downloads
+    </button>
+  </div>
+</div>

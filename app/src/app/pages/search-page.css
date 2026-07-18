@@ -1,0 +1,71 @@
+.search-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: 100%;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+.query {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.query lucide-icon {
+  position: absolute;
+  left: 11px;
+  pointer-events: none;
+}
+.query-input {
+  width: 100%;
+  padding-left: 34px;
+}
+
+.banner {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding: 2px 2px;
+}
+
+.results {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+.results app-sound-list {
+  width: 100%;
+}
+
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  width: 100%;
+}
+.skel-row {
+  height: 34px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spacer {
+  flex: 1;
+}
+.fav-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fav-tip lucide-icon {
+  color: var(--danger);
+}

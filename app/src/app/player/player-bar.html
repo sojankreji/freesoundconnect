@@ -1,0 +1,67 @@
+<div class="player card">
+  <div class="titlebar">
+    <div class="title">
+      @if (current()) {
+        <lucide-icon name="audio-lines" [size]="16"></lucide-icon>
+        <span class="name">{{ current()!.name }}</span>
+      } @else {
+        <span class="faint">No sound loaded — pick one from the list</span>
+      }
+    </div>
+    @if (selectionLabel()) {
+      <div class="selection">
+        <span>{{ selectionLabel() }}</span>
+        <button class="btn btn-sm btn-ghost" (click)="clearSelection()">
+          <lucide-icon name="x" [size]="13"></lucide-icon> Clear
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="wave-wrap">
+    <div class="wave" #wave></div>
+    @if (loading()) {
+      <div class="wave-overlay">Loading waveform…</div>
+    } @else if (!current()) {
+      <div class="wave-overlay faint">Drag across the waveform to pick a region to insert</div>
+    }
+  </div>
+
+  <div class="controls">
+    <button class="transport" (click)="togglePlay()" [disabled]="!current()">
+      <lucide-icon [name]="playing() ? 'pause' : 'play'" [size]="17"></lucide-icon>
+    </button>
+    <button class="transport" (click)="stop()" [disabled]="!current()">
+      <lucide-icon name="square" [size]="15"></lucide-icon>
+    </button>
+    <span class="time mono">{{ timeLabel() }}</span>
+
+    <span class="spacer"></span>
+
+    @if (current()) {
+      <div
+        class="drag-chip"
+        draggable="true"
+        (dragstart)="onDragToTimeline($event)"
+        [title]="region() ? 'Drag the selected region onto your Resolve timeline' : 'Drag this sound onto your Resolve timeline'"
+      >
+        <lucide-icon name="grip-vertical" [size]="15"></lucide-icon>
+        {{ region() ? 'Drag region to timeline' : 'Drag to timeline' }}
+      </div>
+    } @else {
+      <span class="drag-hint faint">Drag across the waveform to select a region</span>
+    }
+
+    <span class="spacer"></span>
+
+    <lucide-icon name="volume-2" [size]="16" class="faint"></lucide-icon>
+    <input
+      class="volume"
+      type="range"
+      min="0"
+      max="100"
+      [value]="player.volume() * 100"
+      (input)="onVolume($event)"
+    />
+  </div>
+</div>

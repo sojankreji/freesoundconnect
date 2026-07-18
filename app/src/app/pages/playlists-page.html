@@ -1,0 +1,55 @@
+@if (names().length === 0) {
+  <div class="empty-state">
+    <lucide-icon name="library" [size]="40"></lucide-icon>
+    <h2>No playlists yet</h2>
+    <p class="hint">
+      Collect sounds in the shotlist (🛒 top right) and use “Save as playlist”
+      to create one.
+    </p>
+  </div>
+} @else {
+  <div class="playlists">
+    <div class="names card">
+      <div class="names-head">Playlists</div>
+      <div class="names-list">
+        @for (name of names(); track name) {
+          <button
+            class="name-item"
+            [class.active]="name === selectedName()"
+            (click)="select(name)"
+          >
+            <span class="name-text">{{ name }}</span>
+            <span class="count">{{ countFor(name) }}</span>
+          </button>
+        }
+      </div>
+      <div class="names-actions">
+        <button class="btn btn-sm" (click)="rename()">
+          <lucide-icon name="pencil" [size]="13"></lucide-icon> Rename
+        </button>
+        <span class="spacer"></span>
+        <button class="btn btn-sm btn-danger-ghost" (click)="deletePlaylist()">
+          <lucide-icon name="trash-2" [size]="13"></lucide-icon> Delete
+        </button>
+      </div>
+    </div>
+
+    <div class="detail card">
+      <div class="detail-head">
+        <span class="detail-title">{{ selectedName() }}</span>
+        <span class="hint">· {{ sounds().length }} sound{{ sounds().length === 1 ? '' : 's' }}</span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm" (click)="removeSound()">
+          <lucide-icon name="minus" [size]="13"></lucide-icon> Remove from playlist
+        </button>
+      </div>
+      <div class="detail-body">
+        <app-sound-list
+          [sounds]="sounds()"
+          variant="full"
+          emptyText="This playlist is empty."
+        ></app-sound-list>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,61 @@
+<div class="scrim" (click)="close.emit()"></div>
+
+<aside class="drawer">
+  <header class="drawer-head">
+    <div class="head-title">
+      <lucide-icon name="heart" [size]="18"></lucide-icon>
+      <h3>Shotlist</h3>
+      <span class="pill">{{ sounds().length }}</span>
+    </div>
+    <button class="btn btn-ghost btn-icon" (click)="close.emit()" title="Close">
+      <lucide-icon name="x" [size]="18"></lucide-icon>
+    </button>
+  </header>
+
+  @if (sounds().length === 0) {
+    <div class="drawer-empty">
+      <lucide-icon name="heart" [size]="38"></lucide-icon>
+      <p class="empty-title">No favourites yet</p>
+      <p class="hint">
+        Tap the ♥ on any sound to save it here, then drag it — or a trimmed
+        region — onto your Resolve timeline.
+      </p>
+    </div>
+  } @else {
+    <p class="drawer-hint hint">Drag any card onto your Resolve timeline. Click to preview.</p>
+    <div class="items">
+      @for (sound of sounds(); track sound.id) {
+        <div
+          class="item"
+          [class.current]="isCurrent(sound)"
+          draggable="true"
+          (click)="load(sound)"
+          (dragstart)="onDragStart($event, sound)"
+        >
+          <button class="item-play" (click)="play($event, sound)">
+            <lucide-icon [name]="isPlaying(sound) ? 'pause' : 'play'" [size]="14"></lucide-icon>
+          </button>
+          <div class="item-body">
+            <span class="item-name">{{ sound.name }}</span>
+            <span class="item-meta faint mono">
+              {{ fmtDuration(sound.duration) }} · {{ sound.username }}
+            </span>
+          </div>
+          <lucide-icon name="grip-vertical" [size]="16" class="item-grip"></lucide-icon>
+          <button class="item-remove" (click)="remove($event, sound)" title="Remove from shotlist">
+            <lucide-icon name="x" [size]="15"></lucide-icon>
+          </button>
+        </div>
+      }
+    </div>
+
+    <footer class="drawer-foot">
+      <button class="btn btn-sm btn-ghost" (click)="clear()">
+        <lucide-icon name="trash-2" [size]="14"></lucide-icon> Clear
+      </button>
+      <button class="btn btn-sm btn-primary" (click)="saveAsPlaylist()">
+        <lucide-icon name="list-plus" [size]="14"></lucide-icon> Save as playlist
+      </button>
+    </footer>
+  }
+</aside>

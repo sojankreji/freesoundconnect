@@ -4,219 +4,123 @@
 
 <h1 align="center">Freesound Connect for DaVinci Resolve</h1>
 
-A standalone companion app: search [freesound.org](https://freesound.org),
-preview sounds, and **drag them straight onto your DaVinci Resolve
-timeline**.
+A standalone desktop app: search [freesound.org](https://freesound.org),
+preview sounds with an interactive waveform, and **drag them — or a trimmed
+region — straight onto your DaVinci Resolve timeline**.
 
-- 🔎 Full-text search with license and sort filters, plus rich result
-  details (format, sample rate, rating, download count, tags)
-- ▶️ Instant in-app preview with **waveform display**, click-to-seek,
-  play/pause and volume controls
-- ✂️ **Drag-select a region of the waveform** to insert only that part of
-  the sound into your timeline
-- 🎬 Drag any result onto Resolve's timeline or Media Pool — it lands as a
-  real, **original-quality** audio file
-- 📋 Collect sounds in a cart-style **shotlist** (🛒 button) and save them
-  as named **playlists**, managed on their own page via the sidebar
-  navigation
-- 🔥 **Trending sounds** on launch — the most-downloaded recent uploads,
-  before you even type a search
-- 🔐 One-click **"Log in with Freesound"** — no manual API keys to copy
-- 📝 Automatically maintains a `CREDITS.txt` attribution file for the
-  Creative Commons sounds you use
+- 🔎 Full-text search with license/sort filters and rich detail (format,
+  sample rate, rating, downloads, tags)
+- ▶️ Interactive **waveform** preview: play/pause, click-to-seek, volume
+- ✂️ **Drag across the waveform** to select a region and insert only that part
+- 🎬 Drag a result — or the player's **Drag to timeline** handle — onto
+  Resolve's timeline or Media Pool; it lands as a real, **original-quality**
+  audio file
+- ♥ **Shotlist**: favourite sounds with the heart on any row, review them in
+  the side drawer, and save them as named **playlists**
+- 🔥 **Trending** sounds on launch, before you even search
+- 🔐 One-click **"Log in with Freesound"** (OAuth2) for original-quality
+  downloads
+- 📝 Auto-maintains a `CREDITS.txt` attribution file for the Creative Commons
+  sounds you use
 - 🆓 Works with **both the free version of DaVinci Resolve and Studio**
-  (macOS, Windows, Linux)
+  (macOS, Windows, Linux) — it uses plain OS drag-and-drop, not Resolve's
+  Studio-only scripting APIs
+
+Built with **Electron + Angular**. The app lives in [`app/`](app/); see
+[app/README.md](app/README.md) for architecture and full developer docs.
 
 ## Why a standalone app?
 
-Blackmagic removed script GUIs (Fusion UIManager) from the free version of
-Resolve in 19.1, and external scripting has always been Studio-only. OS
-drag-and-drop, however, works in every version of Resolve — so Freesound
-Connect runs as its own window next to Resolve and hands files over the
-same way Finder/Explorer does.
+Blackmagic removed script GUIs from the free version of Resolve in 19.1, and
+external scripting has always been Studio-only. OS drag-and-drop works in every
+version — so Freesound Connect runs as its own window next to Resolve and hands
+files over the same way Finder/Explorer does.
 
-## Download
+## Run from source
 
-Grab the latest build for your OS from the
-[**Releases page**](https://github.com/sojankreji/freesoundconnect/releases)
-— no Python required:
-
-| OS | File | Notes |
-|----|------|-------|
-| macOS | `FreesoundConnect-macOS.zip` | Unzip, move to Applications. First launch: **right-click ▸ Open** (the app is unsigned), or run `xattr -dr com.apple.quarantine "/Applications/Freesound Connect.app"` |
-| Windows | `FreesoundConnect-Windows.zip` | Unzip and run `FreesoundConnect.exe`. SmartScreen may warn about an unsigned app — choose *More info ▸ Run anyway* |
-| Linux | `FreesoundConnect-Linux.zip` | Unzip, `chmod +x freesoundconnect`, run it |
-
-All you need besides the app is a free Freesound account — clicking
-**Log in with Freesound** in the app handles the rest.
-
-## Running from source
-
-Requires Python 3.9+:
+Requires Node 22.12+ / 24.15+. From the repo root:
 
 ```bash
-git clone https://github.com/sojankreji/freesoundconnect
-cd freesoundconnect
-pip3 install -r requirements.txt
-python3 freesound_connect.py
+cd app
+npm install
+npm run dev        # ng serve + Electron with live reload
 ```
 
-Or install it as a command with [pipx](https://pipx.pypa.io):
+Running from source needs OAuth credentials — set `FREESOUND_CLIENT_ID` /
+`FREESOUND_CLIENT_SECRET`, or copy `app/electron/credentials.example.json` to
+`app/electron/credentials.json` (gitignored) and fill in the values. See
+[Setting up OAuth credentials](#setting-up-oauth-credentials-for-maintainers).
+
+## Build installers
 
 ```bash
-pipx install .
-freesoundconnect
+cd app
+npm run dist       # electron-builder → app/release/
 ```
 
-Running from source needs its own OAuth credentials — see
-[Setting up OAuth credentials](#setting-up-oauth-credentials-for-maintainers)
-below, or ask whoever maintains your fork for a dev
-`oauth_credentials.py`.
-
-## Logging in
-
-Freesound Connect signs you in with your real Freesound account via OAuth2
-— there's no API key to find or paste.
-
-1. Launch the app and click **Log in with Freesound**.
-2. Your browser opens Freesound's login/authorize page. Approve access.
-3. The tab confirms you're logged in — switch back to Freesound Connect,
-   where your avatar and username now appear in the header.
-
-Tokens are stored locally in `~/.freesoundconnect/config.json`
-(file permissions restricted to your user) and refreshed automatically.
-Click **Log out** any time to revoke local access — this doesn't revoke
-the authorization on freesound.org itself, which you can do from your
-[Freesound account settings](https://freesound.org/home/app_permissions/).
+Produces a dmg/zip (macOS), nsis installer (Windows), and AppImage (Linux). CI
+([.github/workflows/electron-build.yml](.github/workflows/electron-build.yml))
+builds all three on a `v*` tag and attaches them to a GitHub Release.
 
 ## Usage
 
 1. Launch the app and keep it next to (or on top of) Resolve.
-2. Type a search term ("rain", "whoosh", "door slam"…) and press Enter.
-   Optionally filter by license (CC0 / CC-BY / CC-BY-NC) and sort order.
-3. Click a result to load its **waveform** in the player bar; double-click
-   (or hit **▶**) to listen. Click the waveform to seek.
-4. **Drag the row onto your Resolve timeline** — drop it on an audio track
-   at the spot you want, or drop it in the Media Pool.
-5. Want just a piece of a long sound? **Drag across the waveform** to
-   select a region — the selection plays back on its own, and dragging the
-   row to Resolve then inserts **only the selected part** (exported as a
-   WAV next to your downloads). Double-click the waveform to clear the
-   selection.
-6. Use **＋ Add to Shotlist** to collect candidate sounds while you browse,
-   then review them in the **🛒 Shotlist** popup (top right) — preview,
-   remove, drag to Resolve, or **Save as playlist…**. Open **🎼 Playlists**
-   in the left navigation to browse saved playlists: rename or delete
-   them, remove individual sounds, send sounds back to the shotlist, and
-   preview/drag them to Resolve like any search result. The shotlist
-   itself survives restarts.
+2. Click **Log in with Freesound** and approve access in the browser.
+3. Type a search term, or browse the trending list shown on launch. Filter by
+   license (CC0 / CC-BY / CC-BY-NC) and sort order.
+4. Click a result to load its **waveform**; click the waveform to seek, or
+   double-click a row to play.
+5. **Drag the row (or the player's "Drag to timeline" handle) onto your Resolve
+   timeline** — it downloads and drops the original-quality file.
+6. To insert only part of a long sound, **drag across the waveform** to select
+   a region; the **Drag to timeline** handle then inserts just that region as a
+   WAV.
+7. Tap the **♥** on any row to add it to your **Shotlist** (the drawer at top
+   right). Save the shotlist as a named **playlist**, browsable from the
+   Playlists page.
 
-Sounds are saved to `~/Documents/FreesoundConnect/` — keep that folder
-around, since your Resolve project links to the files in it. Every sound
-you take is also logged to `CREDITS.txt` in that folder with its author,
-URL, and license — paste it straight into your video description to
-satisfy CC-BY attribution.
+Sounds are saved to `~/Documents/FreesoundConnect/`; keep that folder, since
+your Resolve project links to the files in it. Every sound you take is logged
+to `CREDITS.txt` there with its author, URL, and license.
 
-## Good to know
+## Logging in
 
-- **Audio quality:** in-app preview streams Freesound's compressed MP3
-  preview, but **dragging to the timeline downloads the original file**
-  exactly as its uploader submitted it (WAV/AIFF/FLAC/etc.) — this needs
-  the OAuth2 login above, which is why login is required before searching.
-- **Licenses:** filter by **CC0** if you want zero-attribution sounds for
-  commercial work. CC-BY requires credit (the app writes it for you);
-  CC-BY-NC is non-commercial only. You are responsible for complying with
-  each sound's license.
+Freesound Connect signs you in with your real Freesound account via OAuth2 —
+no API key to paste. Tokens are stored locally in
+`~/.freesoundconnect/config.json` and refreshed automatically. Click **Log out**
+to revoke local access (this doesn't revoke the authorization on freesound.org
+itself, which you can do from your
+[Freesound account settings](https://freesound.org/home/app_permissions/)).
 
-## Troubleshooting
+If the browser redirect can't reach `127.0.0.1:8918` (strict firewall/proxy),
+the login window lets you paste the authorization code by hand.
 
-- **"Freesound Connect needs PySide6"** — run
-  `pip3 install -r requirements.txt` with the same Python you use to start
-  the app.
-- **"This build is missing Freesound OAuth credentials"** — you're running
-  from source without an `oauth_credentials.py`. See
-  [Setting up OAuth credentials](#setting-up-oauth-credentials-for-maintainers).
-- **Browser opens but the app never logs you in** — something else on
-  your machine is using port 8918. Quit it and click **Log in with
-  Freesound** again (the port is currently fixed; see Roadmap).
-- **"Your Freesound login expired"** — click **Log in with Freesound**
-  again; refresh tokens can be revoked from your
-  [Freesound account settings](https://freesound.org/home/app_permissions/).
-- **Browser redirect doesn't come back / login seems to hang** — in the
-  login window that opens, paste the authorization code (or the whole
-  address-bar URL after you approve) into the **"Paste authorization
-  code…"** field and click **Submit code**. This bypasses the local
-  redirect entirely, which is useful if a firewall or unusual browser
-  setup blocks `127.0.0.1:8918`. Unexpected login errors are also logged
-  to `~/.freesoundconnect/error.log`.
-- **No sound on preview (Linux)** — Qt Multimedia needs GStreamer plugins:
-  `sudo apt install gstreamer1.0-plugins-good gstreamer1.0-plugins-bad libmpg123-0`.
-- **"SSL certificates missing"** — Your Python can't verify HTTPS
-  certificates (common with python.org installs on macOS). Run
-  `pip3 install certifi`, or run *Install Certificates.command* found in
-  your `/Applications/Python 3.x/` folder.
+## Data & files
 
-## Building executables
-
-Releases are built automatically by
-[GitHub Actions](.github/workflows/build.yml): pushing a tag like `v1.0.0`
-builds macOS, Windows, and Linux executables with PyInstaller and attaches
-them to a GitHub Release. To build locally:
-
-```bash
-pip3 install -r requirements.txt pyinstaller
-./scripts/build.sh        # macOS / Linux  →  dist/
-.\scripts\build.ps1       # Windows        →  dist\FreesoundConnect.exe
-```
-
-The logo lives in [assets/icon.svg](assets/icon.svg); regenerate the
-`.png` / `.icns` / `.ico` derivatives with
-`python3 scripts/render_icons.py` (needs PySide6 + Pillow).
+Under `~/.freesoundconnect/`: `config.json` (OAuth tokens), `playlists.json`
+(shotlist + playlists), and `previews/` (cached preview MP3s). Downloads and
+`CREDITS.txt` go to `~/Documents/FreesoundConnect/`.
 
 ## Setting up OAuth credentials (for maintainers)
 
-Freesound Connect uses a single, shared "Log in with Freesound" OAuth2
-app — end users never register anything themselves. If you're building
-the app yourself (from source or for a release), you need your own
-Freesound app credentials:
+Freesound Connect uses a single shared "Log in with Freesound" OAuth2 app; end
+users never register anything. To build it yourself you need your own Freesound
+app credentials:
 
 1. Log in at [freesound.org](https://freesound.org) and go to
-   <https://freesound.org/apiv2/apps/> to create a new API credential.
+   <https://freesound.org/apiv2/apps/> to create an API credential.
 2. Set its **Redirect URI** to exactly `http://127.0.0.1:8918/callback`
-   — this must match `REDIRECT_URI` in `freesoundconnect/config.py`.
-3. Copy `oauth_credentials.example.py` to `oauth_credentials.py` (already
-   gitignored) and fill in the `CLIENT_ID` / `CLIENT_SECRET` you were
-   given:
-   ```bash
-   cp oauth_credentials.example.py oauth_credentials.py
-   ```
-4. Run the app normally — it picks up `oauth_credentials.py`
-   automatically. (You can alternatively set the `FREESOUND_CLIENT_ID`
-   / `FREESOUND_CLIENT_SECRET` environment variables instead of the
-   file.)
+   (must match `REDIRECT_URI` in [app/electron/oauth.ts](app/electron/oauth.ts)).
+3. Copy `app/electron/credentials.example.json` to
+   `app/electron/credentials.json` (gitignored) and fill in the
+   `clientId` / `clientSecret`.
 
-For CI-built releases, add `FREESOUND_CLIENT_ID` and
-`FREESOUND_CLIENT_SECRET` as **repository secrets** in GitHub (Settings
-▸ Secrets and variables ▸ Actions) — the
-[build workflow](.github/workflows/build.yml) writes them into
-`oauth_credentials.py` before each build so the secret itself never
-touches the git history.
-
-`CLIENT_SECRET` does end up embedded in the distributed executables —
-that's inherent to how desktop OAuth2 clients work and is what
-Freesound's own API expects for non-server apps.
-
-## Roadmap
-
-- Code-signed / notarized builds
-- Configurable OAuth redirect port (currently fixed at 8918)
-- Duration / sample-rate filters, tag browsing
-- Optional direct insert-at-playhead for Resolve **Studio** (scripting API)
-
-Contributions welcome — open an issue or PR!
+For CI-built releases, add `FREESOUND_CLIENT_ID` and `FREESOUND_CLIENT_SECRET`
+as repository secrets — the build workflow writes them into
+`credentials.json` before packaging.
 
 ## License
 
-[MIT](LICENSE). Not affiliated with Blackmagic Design or the Freesound
-project. Sound content is subject to each sound's own Creative Commons
-license and the [Freesound API terms](https://freesound.org/help/tos_api/).
+[MIT](LICENSE). Not affiliated with Blackmagic Design or the Freesound project.
+Sound content is subject to each sound's own Creative Commons license and the
+[Freesound API terms](https://freesound.org/help/tos_api/).

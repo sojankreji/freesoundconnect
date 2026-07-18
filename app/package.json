@@ -1,0 +1,58 @@
+{
+  "name": "freesoundconnect",
+  "version": "3.0.0",
+  "description": "Search freesound.org, preview sounds, and drag them onto your DaVinci Resolve timeline.",
+  "author": "sojankreji",
+  "license": "MIT",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"const f=require('fs');f.copyFileSync('electron/drag-icon.png','dist-electron/drag-icon.png');try{f.copyFileSync('electron/credentials.json','dist-electron/credentials.json')}catch{}\"",
+    "dev": "npm run build:electron && concurrently -k \"ng serve --port 4200\" \"wait-on http://localhost:4200 && ELECTRON_START_URL=http://localhost:4200 electron .\"",
+    "build": "ng build --base-href ./ && npm run build:electron",
+    "dist": "npm run build && electron-builder",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
+  },
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "dependencies": {
+    "@angular/common": "^21.0.0",
+    "@angular/compiler": "^21.0.0",
+    "@angular/core": "^21.0.0",
+    "@angular/forms": "^21.0.0",
+    "@angular/platform-browser": "^21.0.0",
+    "@angular/router": "^21.0.0",
+    "@fontsource/inter": "^5.2.8",
+    "lucide-angular": "^1.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "wavesurfer.js": "^7.12.11"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.0.3",
+    "@angular/cli": "^21.0.3",
+    "@angular/compiler-cli": "^21.0.0",
+    "@types/node": "^26.1.1",
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^27.1.0",
+    "typescript": "~5.9.2",
+    "vitest": "^4.0.8",
+    "wait-on": "^9.0.10"
+  }
+}
