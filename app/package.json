@@ -1,6 +1,6 @@
 {
   "name": "freesoundconnect",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Search freesound.org, preview sounds, and drag them onto your DaVinci Resolve timeline.",
   "author": "sojankreji",
   "license": "MIT",
